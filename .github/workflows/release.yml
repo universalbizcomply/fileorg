@@ -1,0 +1,78 @@
+name: Build and Publish Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Expand current Document Organiser source
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path app | Out-Null
+          Expand-Archive -LiteralPath source/DocumentOrganiser_Source.zip -DestinationPath app -Force
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer and update package
+        shell: powershell
+        working-directory: app
+        run: ./scripts/build_distributable_installer.ps1
+
+      - name: Read version
+        id: version
+        shell: powershell
+        run: |
+          $v = (Get-Content app/VERSION.txt | Select-Object -First 1).Trim()
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Preserve generated manifest
+        shell: powershell
+        run: Copy-Item app/update_output/update_manifest.json "$env:RUNNER_TEMP/update_manifest.json" -Force
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          gh release create "v$v" `
+            "app/installer_output/DocumentOrganiserSetup.exe" `
+            "app/update_output/DocumentOrganiser_${v}_update.zip" `
+            --repo "${{ github.repository }}" `
+            --title "Document Organiser v$v" `
+            --notes "Document Organiser v$v Windows release. Existing installations can use Check for Updates; new installations can use DocumentOrganiserSetup.exe."
+
+      - name: Publish latest update manifest to main
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          New-Item -ItemType Directory -Force -Path update | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/update_manifest.json" "update/update_manifest.json" -Force
+          git add update/update_manifest.json
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore: publish update manifest for v${{ steps.version.outputs.version }}"
+            git push origin main
+          }
