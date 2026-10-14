@@ -2,5 +2,5 @@
   "version": "2.8.2",
   "package_url": "https://github.com/universalbizcomply/fileorg/releases/download/v2.8.2/DocumentOrganiser_2.8.2_update.zip",
   "sha256": "7528114C3415C6C7A0FEE70390AF2646C20DAECB5EC62E8B80D418639BE0190D",
-  "release_notes": "Document Organiser 2.8.2 update"
+  "release_notes": "Document Organiser 2.8.2 fixes OpenAI document identity extraction, adds clearer AI diagnostics, improves company-number matching, and preserves the continuous master client database and output settings during in-app updates."
 }
