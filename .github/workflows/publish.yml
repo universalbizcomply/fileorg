@@ -76,8 +76,9 @@ jobs:
           $installer = "app/installer_output/DocumentOrganiserSetup.exe"
           $updateZip = "app/update_output/DocumentOrganiser_${v}_update.zip"
 
-          gh release view $tag --repo "${{ github.repository }}" *> $null
-          if ($LASTEXITCODE -ne 0) {
+          cmd /c "gh release view $tag --repo \"${{ github.repository }}\" >nul 2>nul"
+          $releaseExists = ($LASTEXITCODE -eq 0)
+          if (-not $releaseExists) {
             gh release create $tag $installer $updateZip --repo "${{ github.repository }}" --title "Document Organiser v$v" --notes "Document Organiser v$v Windows release. Existing installations can update in-app; new installations can use DocumentOrganiserSetup.exe."
           } else {
             gh release upload $tag $installer $updateZip --repo "${{ github.repository }}" --clobber
