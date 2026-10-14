@@ -1,6 +1,6 @@
-{
-  "version": "2.8.0",
-  "package_url": "https://github.com/universalbizcomply/fileorg/releases/download/v2.8.0/DocumentOrganiser_2.8.0_update.zip",
-  "sha256": "PENDING_FIRST_RELEASE",
-  "release_notes": "Document Organiser 2.8.0 establishes the official GitHub update channel, continuous master client database/CSV mirror, and remembered master output folder."
+﻿{
+    "package_url":  "https://github.com/universalbizcomply/fileorg/releases/download/v2.8.2/DocumentOrganiser_2.8.2_update.zip",
+    "sha256":  "7528114C3415C6C7A0FEE70390AF2646C20DAECB5EC62E8B80D418639BE0190D",
+    "version":  "2.8.2",
+    "release_notes":  "Document Organiser 2.8.2 update"
 }
