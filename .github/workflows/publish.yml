@@ -1,0 +1,87 @@
+name: Build and Publish Document Organiser
+
+on:
+  push:
+    paths:
+      - 'source/DocumentOrganiser_Source.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+
+      - name: Expand source bundle
+        shell: powershell
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "documentorganiser-src"
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Expand-Archive -LiteralPath "source/DocumentOrganiser_Source.zip" -DestinationPath $stage -Force
+
+          $root = Get-ChildItem -LiteralPath $stage -Directory -Recurse |
+            Where-Object { Test-Path (Join-Path $_.FullName "VERSION.txt") } |
+            Select-Object -First 1
+
+          if (-not $root) {
+            throw "Could not locate the Document Organiser source root (VERSION.txt missing)."
+          }
+
+          Copy-Item -Path (Join-Path $root.FullName "*") -Destination "app" -Recurse -Force
+
+      - name: Build Windows installer and in-app update package
+        shell: powershell
+        working-directory: app
+        run: .\scripts\build_distributable_installer.ps1
+
+      - name: Read version
+        id: version
+        shell: powershell
+        run: |
+          $v = (Get-Content "app/VERSION.txt" | Select-Object -First 1).Trim()
+          if (-not $v) { throw "VERSION.txt is empty." }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Publish or refresh GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $tag = "v$v"
+          $installer = "app/installer_output/DocumentOrganiserSetup.exe"
+          $updateZip = "app/update_output/DocumentOrganiser_${v}_update.zip"
+
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $installer $updateZip --repo "${{ github.repository }}" --title "Document Organiser v$v" --notes "Document Organiser v$v Windows release. Existing installations can update in-app; new installations can use DocumentOrganiserSetup.exe."
+          } else {
+            gh release upload $tag $installer $updateZip --repo "${{ github.repository }}" --clobber
+          }
+
+      - name: Publish latest update manifest
+        shell: powershell
+        run: |
+          Copy-Item "app/update_output/update_manifest.json" "update/update_manifest.json" -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update/update_manifest.json
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore: publish update manifest for v${{ steps.version.outputs.version }}"
+            git push origin HEAD:main
+          }
