@@ -3,7 +3,7 @@ name: Build and Publish Document Organiser
 on:
   push:
     paths:
-      - 'source/DocumentOrganiser_Source.zip'
+      - 'source/BUILD_VERSION.txt'
   workflow_dispatch:
 
 permissions:
@@ -26,6 +26,14 @@ jobs:
         shell: powershell
         run: choco install innosetup -y --no-progress
 
+      - name: Rebuild source bundle
+        shell: powershell
+        run: |
+          $parts = Get-ChildItem -Path "source/parts/part*" | Sort-Object Name
+          if (-not $parts) { throw "No source bundle parts were found." }
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          [IO.File]::WriteAllBytes("source/DocumentOrganiser_Source.zip", [Convert]::FromBase64String($b64))
+
       - name: Expand source bundle
         shell: powershell
         run: |
@@ -42,6 +50,7 @@ jobs:
             throw "Could not locate the Document Organiser source root (VERSION.txt missing)."
           }
 
+          New-Item -ItemType Directory -Force -Path "app" | Out-Null
           Copy-Item -Path (Join-Path $root.FullName "*") -Destination "app" -Recurse -Force
 
       - name: Build Windows installer and in-app update package
